@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Manna's Tinadhan POS</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --primary:#2563eb;
+  --dark:#111827;
+  --success:#16a34a;
+  --danger:#dc2626;
+  --warning:#f59e0b;
+  --bg:#f3f6fb;
+  --card:#fff;
+  --border:#e5e7eb;
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; font-family:'DM Sans',Arial,sans-serif; }
+body{ background:var(--bg); }
+
+/* ── LOGIN ───────────────────────────────────── */
+#loginScreen{
+  height:100vh; display:flex; justify-content:center; align-items:center;
+  background:linear-gradient(135deg,#111827,#1f2937);
+}
+.login-box{
+  background:white; width:360px; padding:30px;
+  border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.3);
+}
+.login-box h1{ margin-bottom:6px; text-align:center; }
+.login-box p{ text-align:center; color:#6b7280; font-size:13px; margin-bottom:20px; }
+
+input,select{
+  width:100%; padding:10px; margin-bottom:10px;
+  border:1px solid #ccc; border-radius:10px;
+  font-family:'DM Sans',Arial,sans-serif;
+}
+button{
+  border:none; cursor:pointer; border-radius:10px;
+  padding:10px; color:white;
+  font-family:'DM Sans',Arial,sans-serif; font-weight:600;
+}
+
+.login-btn{ width:100%; margin-bottom:10px; font-size:15px; }
+.admin-btn  { background:var(--primary); }
+.cashier-btn{ background:var(--success); }
+
+/* ── MAIN ────────────────────────────────────── */
+#mainSystem{ display:none; }
+header{ background:linear-gradient(135deg,#111827,#1f2937); color:white; padding:18px; }
+.header-flex{ display:flex; justify-content:space-between; align-items:center; }
+
+/* ── LAYOUT: 3 panels + optional 4th tab area ── */
+.container{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:12px; padding:12px;
+}
+.panel{
+  background:white; border-radius:14px; padding:14px;
+  box-shadow:0 5px 15px rgba(0,0,0,.06); overflow:auto; height:85vh;
+}
+h2{ margin-bottom:12px; }
+
+/* ── ANALYTICS TABS ─────────────────────────── */
+.tab-bar{
+  display:flex; gap:6px; margin-bottom:14px;
+  flex-wrap:wrap;
+}
+.tab-btn{
+  background:#f3f4f6; color:#374151; padding:7px 12px;
+  border-radius:8px; font-size:13px; font-weight:600;
+  border:1px solid var(--border); transition:.15s;
+}
+.tab-btn.active{ background:var(--primary); color:white; border-color:var(--primary); }
+.tab-content{ display:none; }
+.tab-content.active{ display:block; }
+
+/* ── CATEGORY BUTTONS ───────────────────────── */
+.category-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
+.category-btn{
+  background:#f3f4f6; color:#111827; padding:12px;
+  border-radius:12px; font-weight:bold; transition:.2s;
+}
+.category-btn:hover{ background:var(--primary); color:white; }
+
+/* ── PRODUCT CARD ────────────────────────────── */
+.item{
+  background:#f9fafb; border:1px solid var(--border);
+  padding:12px; border-radius:12px; margin-bottom:10px;
+}
+.item-top{ display:flex; justify-content:space-between; }
+.stock-low{ color:var(--danger); font-size:12px; font-weight:bold; }
+.stock-ok { color:var(--success); font-size:12px; font-weight:bold; }
+.add-btn   { background:var(--primary); }
+.delete-btn{ background:var(--danger); margin-top:8px; width:100%; }
+
+/* ── CART ────────────────────────────────────── */
+.cart-item{
+  display:flex; justify-content:space-between; align-items:center;
+  background:#f9fafb; padding:10px; border-radius:10px; margin-bottom:8px;
+  gap:8px;
+}
+.cart-item-actions{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.qty-btn{ width:30px; height:30px; background:var(--primary); }
+.remove-cart-btn{
+  width:30px; height:30px; background:var(--danger);
+  font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.total-box{ position:sticky; bottom:0; background:white; padding-top:10px; }
+.checkout-btn{ width:100%; margin-top:10px; background:var(--success); }
+
+/* ── ANALYTICS / DATE PICKER ─────────────────── */
+.date-picker-section{
+  background:#f0f4ff; border:1px solid #c7d7ff;
+  border-radius:12px; padding:14px; margin-bottom:14px;
+}
+.date-picker-section label{
+  display:block; font-weight:bold; color:#1e3a8a;
+  margin-bottom:6px; font-size:14px;
+}
+.date-row{ display:flex; gap:8px; align-items:center; }
+.date-row input[type="date"]{ flex:1; margin-bottom:0; border:1px solid #93c5fd; background:white; }
+.view-btn{ background:var(--primary); padding:10px 16px; white-space:nowrap; flex-shrink:0; }
+.analytics-result{ display:none; }
+.analytics-result.visible{ display:block; }
+.result-header{
+  background:#1e3a8a; color:white; border-radius:12px;
+  padding:14px; margin-bottom:12px; text-align:center;
+}
+.result-header .result-date { font-size:13px; opacity:.8; margin-bottom:4px; }
+.result-header .result-total{ font-size:28px; font-weight:bold; }
+.result-header .result-count{ font-size:13px; opacity:.8; margin-top:4px; }
+.analytics-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.card{ color:white; padding:14px; border-radius:14px; }
+.blue  { background:#2563eb; } .green { background:#16a34a; }
+.dark  { background:#111827; } .orange{ background:#f59e0b; }
+.purple{ background:#7c3aed; } .teal  { background:#0d9488; }
+.no-data-msg{ text-align:center; padding:30px 20px; color:#9ca3af; }
+.no-data-msg .icon{ font-size:36px; margin-bottom:8px; }
+.low-alert{
+  background:#fef2f2; color:#dc2626; padding:8px;
+  border-radius:8px; margin-top:5px; font-size:13px;
+}
+
+/* ── AUTOCOMPLETE ────────────────────────────── */
+.autocomplete-wrap{ position:relative; }
+.autocomplete-wrap input{ margin-bottom:0; }
+.suggestions-dropdown{
+  position:absolute; top:100%; left:0; right:0; z-index:999;
+  background:white; border:1px solid #93c5fd;
+  border-top:none; border-radius:0 0 10px 10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);
+  max-height:220px; overflow-y:auto;
+}
+.suggestion-item{
+  padding:10px 12px; cursor:pointer; display:flex;
+  justify-content:space-between; align-items:center;
+  border-bottom:1px solid #f3f4f6; font-size:14px;
+  transition:background .15s;
+}
+.suggestion-item:last-child{ border-bottom:none; }
+.suggestion-item:hover{ background:#eff6ff; }
+.suggestion-meta { font-size:12px; color:#6b7280; }
+.suggestion-price{ font-weight:600; color:#2563eb; font-size:13px; }
+
+/* ── MODE TOGGLE ─────────────────────────────── */
+.mode-toggle{
+  display:flex; align-items:center; gap:8px;
+  margin-bottom:10px; font-size:13px; color:#4b5563;
+}
+.mode-toggle label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+.toggle-switch{
+  width:36px; height:20px; background:#d1d5db;
+  border-radius:999px; position:relative; transition:.2s; flex-shrink:0;
+}
+.toggle-switch::after{
+  content:''; position:absolute; top:2px; left:2px;
+  width:16px; height:16px; background:white; border-radius:50%; transition:.2s;
+}
+input[type=checkbox]:checked + .toggle-switch{ background:var(--primary); }
+input[type=checkbox]:checked + .toggle-switch::after{ left:18px; }
+input[type=checkbox]{ display:none; }
+.autocomplete-fields > *{ margin-bottom:10px; }
+.autocomplete-fields select,
+.autocomplete-fields input{ margin-bottom:0; }
+
+/* ── SORTABLE TABLE ──────────────────────────── */
+.sort-table{
+  width:100%; border-collapse:collapse; font-size:13px;
+}
+.sort-table th{
+  background:#f3f4f6; padding:8px 10px;
+  text-align:left; cursor:pointer; user-select:none;
+  border-bottom:2px solid var(--border); white-space:nowrap;
+}
+.sort-table th:hover{ background:#e5e7eb; }
+.sort-table th .sort-arrow{ margin-left:4px; color:#9ca3af; }
+.sort-table td{
+  padding:8px 10px; border-bottom:1px solid var(--border);
+  vertical-align:middle;
+}
+.sort-table tr:hover td{ background:#f9fafb; }
+.badge{
+  display:inline-block; padding:2px 8px; border-radius:999px;
+  font-size:11px; font-weight:700;
+}
+.badge-red  { background:#fef2f2; color:#dc2626; }
+.badge-green{ background:#f0fdf4; color:#16a34a; }
+.badge-warn { background:#fffbeb; color:#d97706; }
+
+/* ── INVENTORY DASHBOARD CARDS ───────────────── */
+.inv-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;
+}
+.inv-card{
+  border-radius:12px; padding:14px; color:white; position:relative;
+}
+.inv-card .inv-label{ font-size:11px; opacity:.8; text-transform:uppercase; letter-spacing:.05em; }
+.inv-card .inv-value{ font-size:24px; font-weight:bold; margin-top:4px; }
+.inv-card .inv-sub  { font-size:12px; opacity:.75; margin-top:2px; }
+
+/* ── LOW STOCK BANNER ────────────────────────── */
+#lowStockBanner{
+  display:none;
+  background:#fef2f2; border:1px solid #fca5a5;
+  border-radius:10px; padding:10px 14px; margin-bottom:10px;
+  font-size:13px; color:#dc2626;
+}
+#lowStockBanner b{ display:block; margin-bottom:4px; }
+
+/* ── MIN STOCK INLINE EDITOR ─────────────────── */
+.min-stock-input{
+  width:54px; padding:4px 6px; font-size:12px;
+  border:1px solid #93c5fd; border-radius:6px;
+  text-align:center;
+}
+.save-min-btn{
+  padding:4px 8px; font-size:12px; background:var(--primary);
+  border-radius:6px; margin-left:4px;
+}
+
+/* ── MODAL ───────────────────────────────────── */
+.modal{
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.5); justify-content:center; align-items:center;
+  z-index:1000;
+}
+.receipt{
+  background:white; width:350px; border-radius:14px;
+  padding:20px; position:relative;
+}
+.receipt-line{ display:flex; justify-content:space-between; margin-bottom:5px; }
+.modal-close-btn{
+  position:absolute; top:12px; right:14px;
+  background:transparent; color:#6b7280; font-size:22px;
+  line-height:1; padding:2px 6px; border-radius:6px; transition:.15s;
+}
+.modal-close-btn:hover{ background:#f3f4f6; color:#111827; }
+
+/* ── ADJUST STOCK MODAL ──────────────────────── */
+#adjustModal .receipt{ width:380px; }
+
+/* ── TOAST ───────────────────────────────────── */
+.toast{
+  position:fixed; bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:#1e3a8a; color:white; padding:12px 24px;
+  border-radius:30px; font-size:14px; font-weight:bold;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  transition:transform .3s ease; z-index:9999; white-space:nowrap;
+}
+.toast.show{ transform:translateX(-50%) translateY(0); }
+
+/* ── LOADING SPINNER ─────────────────────────── */
+.spinner{
+  display:inline-block; width:16px; height:16px;
+  border:3px solid rgba(255,255,255,.4);
+  border-top-color:white; border-radius:50%;
+  animation:spin .7s linear infinite; vertical-align:middle;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+/* ── PRINT ───────────────────────────────────── */
+@media print{
+  body > *:not(#printArea){ display:none !important; }
+  #printArea{ display:block !important; padding:20px; font-family:'DM Mono',monospace; }
+}
+#printArea{ display:none; }
+
+/* ── EXPORT BTNS ─────────────────────────────── */
+.export-row{ display:flex; gap:8px; margin-bottom:12px; }
+.export-btn{ flex:1; padding:10px; font-size:13px; }
+.btn-green { background:var(--success); }
+.btn-dark  { background:var(--dark); }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>Manna's Tinadhan</h1>
+    <p>Point of Sale System</p>
+    <input id="username" placeholder="Username" onkeydown="if(event.key==='Enter')login('admin')">
+    <input id="password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')login('admin')">
+    <button class="login-btn admin-btn"   onclick="login('admin')">Login as Admin</button>
+    <button class="login-btn cashier-btn" onclick="login('cashier')">Login as Cashier</button>
+  </div>
+</div>
+
+<!-- ── MAIN SYSTEM ───────────────────────────────── -->
+<div id="mainSystem">
+
+<header>
+  <div class="header-flex">
+    <div>
+      <h1>Manna's Tinadhan POS</h1>
+      <div id="roleLabel">SYSTEM PANEL</div>
+    </div>
+    <div style="text-align:right;">
+      <div>🟢 Connected to Excel DB</div>
+      <div id="liveDate"></div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ══ PRODUCTS PANEL ══════════════════════════════ -->
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h2 style="margin:0;">Products</h2>
+    <button onclick="logout()" style="background:#dc2626;">Logout</button>
+  </div>
+
+  <!-- LOW STOCK BANNER (cashier sees this) -->
+  <div id="lowStockBanner">
+    <b>⚠️ Low Stock Alert</b>
+    <span id="lowStockBannerText"></span>
+  </div>
+
+  <!-- ADMIN CONTROLS -->
+  <div id="adminControls">
+
+    <div class="mode-toggle">
+      <label>
+        <input type="checkbox" id="manualModeToggle" onchange="toggleManualMode()">
+        <span class="toggle-switch"></span>
+      </label>
+      <span id="modeLabel">Auto-fill mode (search existing products)</span>
+    </div>
+
+    <!-- AUTO-FILL MODE -->
+    <div id="autoFillMode" class="autocomplete-fields">
+      <div class="autocomplete-wrap" style="margin-bottom:10px;">
+        <input id="pName" placeholder="Product Name" autocomplete="off"
+          oninput="onProductNameInput()"
+          onblur="hideSuggestionsDelayed()"
+          onfocus="onProductNameInput()">
+        <div class="suggestions-dropdown" id="suggestionsDropdown" style="display:none;"></div>
+      </div>
+      <select id="pCategory" style="margin-bottom:10px;">
+        <option value="">Select Category</option>
+        <option value="Dairy Products">🥛 Dairy Products</option>
+        <option value="Bread & Buns">🍞 Bread &amp; Buns</option>
+        <option value="Sauces & Condiments">🥫 Sauces &amp; Condiments</option>
+        <option value="Meat Products">🍖 Meat Products</option>
+        <option value="Frozen Products">🍟 Frozen Products</option>
+        <option value="Packaging Supplies">📦 Packaging Supplies</option>
+      </select>
+      <input id="pPrice" type="number" placeholder="Price" style="margin-bottom:10px;">
+      <input id="pStock" type="number" placeholder="Stock (qty to add)" style="margin-bottom:10px;">
+      <button id="addProductBtn" onclick="addProduct()" style="width:100%;background:#2563eb;margin-bottom:12px;">
+        Add / Restock Product
+      </button>
+    </div>
+
+    <!-- MANUAL MODE -->
+    <div id="manualMode" style="display:none;">
+      <input id="pNameM" placeholder="Product Name" style="margin-bottom:10px;">
+      <select id="pCategoryM" style="margin-bottom:10px;">
+        <option value="">Select Category</option>
+        <option value="Dairy Products">🥛 Dairy Products</option>
+        <option value="Bread & Buns">🍞 Bread &amp; Buns</option>
+        <option value="Sauces & Condiments">🥫 Sauces &amp; Condiments</option>
+        <option value="Meat Products">🍖 Meat Products</option>
+        <option value="Frozen Products">🍟 Frozen Products</option>
+        <option value="Packaging Supplies">📦 Packaging Supplies</option>
+      </select>
+      <input id="pPriceM" type="number" placeholder="Price" style="margin-bottom:10px;">
+      <input id="pStockM" type="number" placeholder="Stock" style="margin-bottom:10px;">
+      <button id="addProductBtnM" onclick="addProductManual()" style="width:100%;background:#2563eb;margin-bottom:12px;">
+        Add / Restock Product
+      </button>
+    </div>
+
+  </div><!-- /adminControls -->
+
+  <input id="searchBox" placeholder="🔍 Search Product..." onkeyup="searchProducts()">
+
+  <div class="category-grid">
+    <button class="category-btn" onclick="filterCategory('All')">All</button>
+    <button class="category-btn" onclick="filterCategory('Dairy Products')">🥛 Dairies</button>
+    <button class="category-btn" onclick="filterCategory('Bread & Buns')">🍞 Bread</button>
+    <button class="category-btn" onclick="filterCategory('Sauces & Condiments')">🥫 Sauces</button>
+    <button class="category-btn" onclick="filterCategory('Meat Products')">🍖 Meat</button>
+    <button class="category-btn" onclick="filterCategory('Frozen Products')">🍟 Frozen</button>
+    <button class="category-btn" onclick="filterCategory('Packaging Supplies')">📦 Packaging</button>
+  </div>
+
+  <div id="productList"><div class="no-data-msg"><div class="spinner" style="border-top-color:#2563eb;border-color:#e5e7eb;border-top-color:#2563eb;"></div><br>Loading products…</div></div>
+</div>
+
+<!-- ══ CART / CASHIER PANEL ════════════════════════ -->
+<div class="panel" id="cashierPanel">
+  <h2>Cart</h2>
+  <div id="cartList"></div>
+  <div class="total-box">
+    <h2>Total: ₱<span id="total">0.00</span></h2>
+    <button class="checkout-btn" onclick="openCheckout()">Proceed to Checkout</button>
+  </div>
+</div>
+
+<!-- ══ ANALYTICS PANEL ═════════════════════════════ -->
+<div class="panel" id="analyticsPanel">
+  <h2>Business Analytics</h2>
+
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('tabSales')">📅 Sales</button>
+    <button class="tab-btn" onclick="switchTab('tabDashboard')">📊 Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('tabBestSellers')">🏆 Best Sellers</button>
+    <button class="tab-btn" onclick="switchTab('tabRestock')">📦 Restock Log</button>
+    <button class="tab-btn" onclick="switchTab('tabPriceLog')">🏷 Price Log</button>
+    <button class="tab-btn" onclick="switchTab('tabTableView')">🗂 Table View</button>
+  </div>
+
+  <!-- ── TAB: SALES ── -->
+  <div class="tab-content active" id="tabSales">
+    <div class="date-picker-section">
+      <label>📅 View Sales by Date</label>
+      <div class="date-row">
+        <input type="date" id="salesDatePicker">
+        <button class="view-btn" onclick="viewSalesByDate()">View</button>
+      </div>
+    </div>
+
+    <div class="analytics-result" id="analyticsResult">
+      <div class="result-header">
+        <div class="result-date" id="resultDateLabel"></div>
+        <div class="result-total">₱<span id="resultTotal">0</span></div>
+        <div class="result-count"><span id="resultCount">0</span> transaction(s)</div>
+      </div>
+      <div class="analytics-grid">
+        <div class="card green">
+          <div style="font-size:12px;">Total Revenue</div>
+          <h2>₱<span id="resultRevenue">0</span></h2>
+        </div>
+        <div class="card blue">
+          <div style="font-size:12px;">Avg. per Transaction</div>
+          <h2>₱<span id="resultAvg">0</span></h2>
+        </div>
+      </div>
+      <div id="inventoryStats"></div>
+      <h3 style="margin-top:15px;margin-bottom:8px;">Transactions on this day</h3>
+      <div id="history"></div>
+    </div>
+
+    <div id="analyticsPlaceholder" class="no-data-msg">
+      <div class="icon">📊</div>
+      <div>Select a date above to view sales data for that day.</div>
+    </div>
+  </div>
+
+  <!-- ── TAB: INVENTORY DASHBOARD ── -->
+  <div class="tab-content" id="tabDashboard">
+    <button onclick="loadDashboard()" style="background:var(--primary);width:100%;margin-bottom:14px;">🔄 Refresh Dashboard</button>
+    <div id="dashboardContent">
+      <div class="no-data-msg"><div class="icon">📊</div><div>Click Refresh to load dashboard.</div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: BEST SELLERS ── -->
+  <div class="tab-content" id="tabBestSellers">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <label style="font-size:13px;color:#374151;white-space:nowrap;">Show top</label>
+      <select id="bsLimit" style="margin-bottom:0;width:80px;">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+      </select>
+      <button onclick="loadBestSellers()" style="background:var(--primary);flex:1;">Load</button>
+    </div>
+    <div id="bestSellersList">
+      <div class="no-data-msg"><div class="icon">🏆</div><div>Click Load to view best sellers.</div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: RESTOCK HISTORY ── -->
+  <div class="tab-content" id="tabRestock">
+    <button onclick="loadRestockHistory()" style="background:var(--primary);width:100%;margin-bottom:12px;">🔄 Load Restock History</button>
+    <div id="restockList">
+      <div class="no-data-msg"><div class="icon">📦</div><div>Click Load to view restock history.</div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: PRICE CHANGE LOG ── -->
+  <div class="tab-content" id="tabPriceLog">
+    <button onclick="loadPriceLog()" style="background:var(--primary);width:100%;margin-bottom:12px;">🔄 Load Price Change Log</button>
+    <div id="priceLogList">
+      <div class="no-data-msg"><div class="icon">🏷</div><div>Click Load to view price changes.</div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: TABLE VIEW ── -->
+  <div class="tab-content" id="tabTableView">
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+      <input id="tableSearchBox" placeholder="🔍 Filter…" style="margin-bottom:0;flex:1;" oninput="renderSortTable()">
+      <select id="tableCatFilter" style="margin-bottom:0;width:130px;" onchange="renderSortTable()">
+        <option value="">All Categories</option>
+        <option value="Dairy Products">🥛 Dairy</option>
+        <option value="Bread & Buns">🍞 Bread</option>
+        <option value="Sauces & Condiments">🥫 Sauces</option>
+        <option value="Meat Products">🍖 Meat</option>
+        <option value="Frozen Products">🍟 Frozen</option>
+        <option value="Packaging Supplies">📦 Packaging</option>
+      </select>
+    </div>
+    <div class="export-row">
+      <button class="export-btn btn-green" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="export-btn btn-dark"  onclick="exportJSON()">⬇ Export JSON</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="sort-table" id="sortTable">
+        <thead>
+          <tr>
+            <th onclick="sortBy('Name')">Name <span class="sort-arrow" id="arr-Name"></span></th>
+            <th onclick="sortBy('Category')">Category <span class="sort-arrow" id="arr-Category"></span></th>
+            <th onclick="sortBy('Price')">Price <span class="sort-arrow" id="arr-Price"></span></th>
+            <th onclick="sortBy('Stock')">Stock <span class="sort-arrow" id="arr-Stock"></span></th>
+            <th onclick="sortBy('MinStock')">Min <span class="sort-arrow" id="arr-MinStock"></span></th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sortTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /analyticsPanel -->
+
+</div><!-- /container -->
+</div><!-- /mainSystem -->
+
+<!-- ── PAYMENT MODAL ─────────────────────────────── -->
+<div class="modal" id="modal">
+  <div class="receipt">
+    <button class="modal-close-btn" onclick="closeModal()">✕</button>
+    <h2 style="margin-bottom:14px;">Payment</h2>
+    <div style="margin-bottom:10px;color:#6b7280;font-size:14px;">
+      Amount due: <b style="color:#111827;">₱<span id="modalTotal">0</span></b>
+    </div>
+    <input id="cashInput" type="number" placeholder="Enter cash amount">
+    <button id="payBtn" onclick="checkout()" style="background:#16a34a;width:100%;margin-bottom:10px;">Pay</button>
+    <button onclick="closeModal()" style="background:#dc2626;width:100%;">Cancel</button>
+  </div>
+</div>
+
+<!-- ── RECEIPT MODAL ─────────────────────────────── -->
+<div class="modal" id="receiptModal">
+  <div class="receipt">
+    <button class="modal-close-btn" onclick="closeReceiptModal()">✕</button>
+    <h2 style="text-align:center;">Manna's Tindahan</h2>
+    <h3 style="text-align:center;margin-bottom:10px;">Official Receipt</h3>
+    <div id="receiptInfo"></div>
+    <div id="receiptItems"></div>
+    <hr style="margin:10px 0;">
+    <div class="receipt-line"><b>Total</b><b>₱<span id="rTotal"></span></b></div>
+    <div class="receipt-line"><span>Cash</span><span>₱<span id="rCash"></span></span></div>
+    <div class="receipt-line"><span>Change</span><span>₱<span id="rChange"></span></span></div>
+    <button onclick="printReceiptAction()" style="background:#2563eb;width:100%;margin-top:10px;">🖨 Print Receipt</button>
+    <button onclick="closeReceiptModal()" style="background:#6b7280;width:100%;margin-top:8px;">Close</button>
+  </div>
+</div>
+
+<!-- ── MANUAL STOCK ADJUSTMENT MODAL ─────────────── -->
+<div class="modal" id="adjustModal">
+  <div class="receipt" style="width:380px;">
+    <button class="modal-close-btn" onclick="closeAdjustModal()">✕</button>
+    <h2 style="margin-bottom:6px;">Manual Stock Adjustment</h2>
+    <p style="color:#6b7280;font-size:13px;margin-bottom:14px;">Correct stock without a sale or restock transaction.</p>
+    <div style="margin-bottom:10px;background:#f3f4f6;padding:10px;border-radius:10px;">
+      <b id="adjProductName">—</b>
+      <div style="font-size:13px;color:#6b7280;">Current stock: <b id="adjCurrentStock">—</b></div>
+      <span id="adjSKU" style="display:none;"></span>
+    </div>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Adjustment amount (+ to add, − to remove)</label>
+    <input id="adjAmount" type="number" placeholder="e.g. -3 or +5" style="margin-bottom:10px;">
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Reason / Note</label>
+    <input id="adjReason" placeholder="e.g. Damaged items, inventory count correction" style="margin-bottom:14px;">
+    <button id="adjSaveBtn" onclick="saveAdjustment()" style="background:#2563eb;width:100%;margin-bottom:8px;">Save Adjustment</button>
+    <button onclick="closeAdjustModal()" style="background:#6b7280;width:100%;">Cancel</button>
+  </div>
+</div>
+
+<!-- PRINT AREA -->
+<div id="printArea"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── CONFIG ─────────────────────────────────────── */
+const API = 'http://localhost:3000';
+
+/* ── STATE ──────────────────────────────────────── */
+let products    = [];
+let cart        = [];
+let lastReceipt = null;
+let currentRole = '';
+let currentUser = '';
+
+// Sortable table state
+let sortCol = 'Name';
+let sortAsc = true;
+
+/* ── UTILS ──────────────────────────────────────── */
+const $   = id => document.getElementById(id);
+const fmt = n  => Number(n).toFixed(2);
+
+function showToast(msg, isError = false) {
+  const t = $('toast');
+  t.innerText = msg;
+  t.style.background = isError ? '#dc2626' : '#1e3a8a';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function setBtnLoading(btnId, loading, label = '') {
+  const btn = $(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<span class="spinner"></span> Processing…'
+    : label || btn.dataset.label || btn.innerText;
+  if (!loading && label) btn.dataset.label = label;
+}
+
+/* ── API CALLS ──────────────────────────────────── */
+async function apiGet(endpoint) {
+  const res = await fetch(API + endpoint);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function apiPost(endpoint, body) {
+  const res = await fetch(API + endpoint, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Server error');
+  return data;
+}
+
+/* ── LOAD PRODUCTS ──────────────────────────────── */
+async function loadProducts() {
+  try {
+    products = await apiGet('/products');
+    renderProducts();
+    checkLowStockBanner();
+    renderSortTable(); // keep table in sync
+  } catch (err) {
+    $('productList').innerHTML = `
+      <div class="no-data-msg">
+        <div class="icon">⚠️</div>
+        <div style="color:#dc2626;">Cannot connect to server.<br>${err.message}</div>
+      </div>`;
+  }
+}
+
+/* ── LOW STOCK BANNER ───────────────────────────── */
+function checkLowStockBanner() {
+  const low = products.filter(p => Number(p.Stock ?? p.stock) <= Number(p.MinStock ?? 5));
+  const banner = $('lowStockBanner');
+  if (low.length) {
+    $('lowStockBannerText').innerText = low.map(p => `${p.Name || p.name} (${p.Stock ?? p.stock} left)`).join(', ');
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/* ── TAB SWITCHING ──────────────────────────────── */
+function switchTab(id) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  $(id).classList.add('active');
+  // Activate matching button by scanning onclick attributes
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.getAttribute('onclick') === `switchTab('${id}')`) btn.classList.add('active');
+  });
+}
+
+/* ── MODE TOGGLE ────────────────────────────────── */
+function toggleManualMode() {
+  const isManual = $('manualModeToggle').checked;
+  $('autoFillMode').style.display = isManual ? 'none' : 'block';
+  $('manualMode').style.display   = isManual ? 'block' : 'none';
+  $('modeLabel').innerText = isManual
+    ? 'Manual mode — fill all fields yourself'
+    : 'Auto-fill mode (search existing products)';
+}
+
+/* ── AUTOCOMPLETE ───────────────────────────────── */
+function onProductNameInput() {
+  const query = $('pName').value.trim().toLowerCase();
+  const dd    = $('suggestionsDropdown');
+  if (query.length < 1) { dd.style.display = 'none'; return; }
+
+  const matches = products.filter(p =>
+    (p.Name || p.name || '').toLowerCase().includes(query)
+  );
+
+  if (!matches.length) { dd.style.display = 'none'; return; }
+
+  dd.innerHTML = matches.map(p => {
+    const idx   = products.indexOf(p);
+    const name  = p.Name || p.name;
+    const cat   = p.Category || p.category;
+    const price = p.Price || p.price;
+    return `
+    <div class="suggestion-item" onmousedown="selectSuggestion(${idx})">
+      <div>
+        <div style="font-weight:600;">${highlightMatch(name, query)}</div>
+        <div class="suggestion-meta">${cat}</div>
+      </div>
+      <div class="suggestion-price">₱${price}</div>
+    </div>`;
+  }).join('');
+
+  dd.style.display = 'block';
+}
+
+function highlightMatch(text, query) {
+  const idx = text.toLowerCase().indexOf(query);
+  if (idx === -1) return text;
+  return text.slice(0, idx)
+    + '<mark style="background:#dbeafe;border-radius:2px;padding:0 1px;">'
+    + text.slice(idx, idx + query.length) + '</mark>'
+    + text.slice(idx + query.length);
+}
+
+function selectSuggestion(idx) {
+  const p = products[idx];
+  $('pName').value  = p.Name  || p.name;
+  $('pPrice').value = p.Price || p.price;
+  const catSel = $('pCategory');
+  const cat    = p.Category || p.category;
+  for (let i = 0; i < catSel.options.length; i++) {
+    if (catSel.options[i].value === cat) { catSel.selectedIndex = i; break; }
+  }
+  $('suggestionsDropdown').style.display = 'none';
+  $('pStock').focus();
+}
+
+function hideSuggestionsDelayed() {
+  setTimeout(() => {
+    const dd = $('suggestionsDropdown');
+    if (dd) dd.style.display = 'none';
+  }, 180);
+}
+
+/* ── ADD / RESTOCK — auto-fill ──────────────────── */
+async function addProduct() {
+  const name     = $('pName').value.trim();
+  const category = $('pCategory').value;
+  const price    = parseFloat($('pPrice').value);
+  const stock    = parseInt($('pStock').value);
+
+  if (!name || !category || isNaN(price) || isNaN(stock))
+    return alert('Please complete all fields.');
+
+  setBtnLoading('addProductBtn', true);
+  try {
+    const res = await apiPost('/add-product', { name, category, price, stock });
+    showToast('✅ ' + res.message);
+    $('pName').value = $('pPrice').value = $('pStock').value = '';
+    $('suggestionsDropdown').style.display = 'none';
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  } finally {
+    setBtnLoading('addProductBtn', false, 'Add / Restock Product');
+  }
+}
+
+/* ── ADD / RESTOCK — manual ─────────────────────── */
+async function addProductManual() {
+  const name     = $('pNameM').value.trim();
+  const category = $('pCategoryM').value;
+  const price    = parseFloat($('pPriceM').value);
+  const stock    = parseInt($('pStockM').value);
+
+  if (!name || !category || isNaN(price) || isNaN(stock))
+    return alert('Please complete all fields.');
+
+  setBtnLoading('addProductBtnM', true);
+  try {
+    const res = await apiPost('/add-product', { name, category, price, stock });
+    showToast('✅ ' + res.message);
+    $('pNameM').value = $('pPriceM').value = $('pStockM').value = '';
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  } finally {
+    setBtnLoading('addProductBtnM', false, 'Add / Restock Product');
+  }
+}
+
+/* ── RENDER PRODUCTS ────────────────────────────── */
+let activeFilter = 'All';
+
+function renderProducts(list = products) {
+  const filtered = activeFilter === 'All'
+    ? list
+    : list.filter(p => (p.Category || p.category) === activeFilter);
+
+  if (!filtered.length) {
+    $('productList').innerHTML = '<div class="no-data-msg"><div class="icon">📦</div><div>No products found.</div></div>';
+    return;
+  }
+
+  $('productList').innerHTML = filtered.map(p => {
+    const idx      = products.indexOf(p);
+    const name     = p.Name  || p.name;
+    const cat      = p.Category || p.category;
+    const sku      = p.SKU   || p.sku;
+    const price    = p.Price || p.price;
+    const stock    = Number(p.Stock ?? p.stock);
+    const minStock = Number(p.MinStock ?? 5);
+    const lowCls   = stock <= minStock ? 'stock-low' : 'stock-ok';
+
+    const adminBtns = currentRole === 'admin'
+      ? `<button class="delete-btn" onclick="deleteProduct('${sku}','${name}')">Delete Product</button>
+         <button style="background:#7c3aed;width:100%;margin-top:6px;" onclick="openAdjustModal('${sku}','${name}',${stock})">⚙ Adjust Stock</button>`
+      : '';
+
+    return `
+    <div class="item">
+      <div class="item-top">
+        <div>
+          <h3>${name}</h3>
+          <div style="color:#6b7280;font-size:13px;">${cat}</div>
+          <div style="margin-top:5px;font-weight:600;">₱${fmt(price)}</div>
+          <div class="${lowCls}">Stock: ${stock} (min: ${minStock})</div>
+        </div>
+        <div>
+          <button class="add-btn" onclick="addToCart(${idx})">Add</button>
+        </div>
+      </div>
+      ${adminBtns}
+    </div>`;
+  }).join('');
+}
+
+/* ── DELETE PRODUCT ─────────────────────────────── */
+async function deleteProduct(sku, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await apiPost('/delete-product', { sku });
+    showToast('🗑 ' + res.message);
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  }
+}
+
+/* ── CART ───────────────────────────────────────── */
+function addToCart(i) {
+  const p     = products[i];
+  const name  = p.Name  || p.name;
+  const price = Number(p.Price || p.price);
+  const stock = Number(p.Stock ?? p.stock);
+
+  if (stock <= 0) return alert('Out of stock!');
+
+  const existing = cart.find(c => c.sku === (p.SKU || p.sku));
+  if (existing) {
+    if (existing.qty >= stock) return alert('Stock limit reached!');
+    existing.qty++;
+  } else {
+    cart.push({ name, sku: p.SKU || p.sku, category: p.Category || p.category, price, qty: 1 });
+  }
+  renderCart();
+}
+
+function renderCart() {
+  const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  $('total').innerText = fmt(total);
+
+  if (!cart.length) {
+    $('cartList').innerHTML = '<div class="no-data-msg" style="padding:20px;"><div>Cart is empty</div></div>';
+    return;
+  }
+
+  $('cartList').innerHTML = cart.map((c, i) => `
+  <div class="cart-item">
+    <div style="flex:1;min-width:0;">
+      <b>${c.name}</b>
+      <div style="font-size:13px;color:#6b7280;">₱${fmt(c.price)} × ${c.qty} = ₱${fmt(c.price * c.qty)}</div>
+    </div>
+    <div class="cart-item-actions">
+      <button class="qty-btn" onclick="changeQty(${i}, 1)">+</button>
+      <button class="qty-btn" onclick="changeQty(${i},-1)">−</button>
+      <button class="remove-cart-btn" onclick="removeCartItem(${i})" title="Remove">🗑</button>
+    </div>
+  </div>`).join('');
+}
+
+function changeQty(i, v) {
+  cart[i].qty += v;
+  if (cart[i].qty <= 0) cart.splice(i, 1);
+  renderCart();
+}
+
+function removeCartItem(i) {
+  cart.splice(i, 1);
+  renderCart();
+}
+
+/* ── CHECKOUT ───────────────────────────────────── */
+function openCheckout() {
+  if (!cart.length) return alert('Cart is empty!');
+  const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  $('modalTotal').innerText = fmt(total);
+  $('cashInput').value = '';
+  $('modal').style.display = 'flex';
+}
+
+function closeModal()        { $('modal').style.display = 'none'; }
+function closeReceiptModal() { $('receiptModal').style.display = 'none'; }
+
+async function checkout() {
+  const cash  = parseFloat($('cashInput').value);
+  const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  if (isNaN(cash) || cash < total) return alert('Insufficient cash amount!');
+
+  setBtnLoading('payBtn', true);
+  try {
+    const res = await apiPost('/checkout', { cashier: currentUser, cart, cash });
+    lastReceipt = { ...res, items: [...cart] };
+    showReceipt(lastReceipt);
+    cart = [];
+    renderCart();
+    closeModal();
+    $('cashInput').value = '';
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  } finally {
+    setBtnLoading('payBtn', false, 'Pay');
+  }
+}
+
+function showReceipt(s) {
+  $('receiptModal').style.display = 'flex';
+  $('receiptInfo').innerHTML = `
+    <div style="text-align:center;color:#6b7280;margin-bottom:10px;font-size:13px;">
+      ${s.transactionID} &nbsp;|&nbsp; ${s.time}
+    </div>`;
+  $('receiptItems').innerHTML = s.items.map(i => `
+    <div class="receipt-line">
+      <span>${i.name} × ${i.qty}</span>
+      <span>₱${fmt(i.price * i.qty)}</span>
+    </div>`).join('');
+  $('rTotal').innerText  = fmt(s.total);
+  $('rCash').innerText   = fmt(s.cash);
+  $('rChange').innerText = fmt(s.change);
+}
+
+function printReceiptAction() {
+  if (!lastReceipt) return;
+  const s = lastReceipt;
+  $('printArea').innerHTML = `
+    <div style="font-family:'DM Mono',monospace;max-width:300px;margin:0 auto;">
+      <h2 style="text-align:center;margin-bottom:4px;">Manna's Tindahan</h2>
+      <div style="text-align:center;font-size:12px;margin-bottom:12px;">${s.transactionID} | ${s.time}</div>
+      <hr style="margin-bottom:10px;">
+      ${s.items.map(i => `<div style="display:flex;justify-content:space-between;"><span>${i.name} ×${i.qty}</span><span>₱${fmt(i.price * i.qty)}</span></div>`).join('')}
+      <hr style="margin:10px 0;">
+      <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Total</span><span>₱${fmt(s.total)}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Cash</span><span>₱${fmt(s.cash)}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Change</span><span>₱${fmt(s.change)}</span></div>
+      <div style="text-align:center;margin-top:16px;font-size:12px;">Thank you for your purchase!</div>
+    </div>`;
+  window.print();
+}
+
+/* ── ANALYTICS — SALES ──────────────────────────── */
+async function viewSalesByDate() {
+  const dateVal = $('salesDatePicker').value;
+  if (!dateVal) return alert('Please select a date.');
+
+  try {
+    const txns = await apiGet(`/sales?date=${dateVal}`);
+    const displayDate = new Date(dateVal + 'T12:00:00')
+      .toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+
+    $('resultDateLabel').innerText = displayDate;
+    const totalRevenue = txns.reduce((s, t) => s + Number(t.TotalAmount), 0);
+    const count        = txns.length;
+    const avg          = count > 0 ? totalRevenue / count : 0;
+
+    $('resultTotal').innerText   = fmt(totalRevenue);
+    $('resultCount').innerText   = count;
+    $('resultRevenue').innerText = fmt(totalRevenue);
+    $('resultAvg').innerText     = fmt(avg);
+
+    if (!txns.length) {
+      $('history').innerHTML = `<div class="no-data-msg"><div class="icon">🗒️</div><div>No transactions recorded on this date.</div></div>`;
+    } else {
+      $('history').innerHTML = [...txns].reverse().map(t => `
+        <div class="item">
+          <b>${t.TransactionID}</b>
+          <div style="font-size:13px;color:#6b7280;">${t.Date} ${t.Time} — ${t.Cashier}</div>
+          <h3>₱${fmt(t.TotalAmount)}</h3>
+          <div style="margin-top:4px;font-size:12px;color:#6b7280;">
+            ${(t.items || []).map(i => `${i.ProductName} ×${i.Qty}`).join(', ')}
+          </div>
+        </div>`).join('');
+    }
+
+    updateInventoryStats();
+    $('analyticsResult').classList.add('visible');
+    $('analyticsPlaceholder').style.display = 'none';
+  } catch (err) {
+    showToast('❌ Failed to load sales: ' + err.message, true);
+  }
+}
+
+function updateInventoryStats() {
+  const lowStock = products.filter(p => Number(p.Stock ?? p.stock) <= Number(p.MinStock ?? 5));
+  $('inventoryStats').innerHTML = `
+    <div class="item" style="margin-top:12px;">
+      <b>Total Products:</b> ${products.length}
+    </div>
+    <div class="item" style="margin-top:8px;">
+      <b>Low Stock Items:</b> ${lowStock.length}
+      ${lowStock.map(p => `<div class="low-alert">⚠ ${p.Name || p.name} — only ${p.Stock ?? p.stock} left (min: ${p.MinStock ?? 5})</div>`).join('')}
+    </div>`;
+}
+
+/* ── INVENTORY DASHBOARD ────────────────────────── */
+async function loadDashboard() {
+  $('dashboardContent').innerHTML = '<div class="no-data-msg"><div class="spinner" style="border-top-color:#2563eb;border-color:#e5e7eb;border-top-color:#2563eb;"></div><br>Loading…</div>';
+  try {
+    const d = await apiGet('/inventory-dashboard');
+    const totalValue = Number(d.totalStockValue).toFixed(2);
+
+    let html = `
+      <div class="inv-grid">
+        <div class="inv-card blue">
+          <div class="inv-label">Total Products</div>
+          <div class="inv-value">${d.totalItems}</div>
+          <div class="inv-sub">unique SKUs</div>
+        </div>
+        <div class="inv-card green">
+          <div class="inv-label">Stock Value</div>
+          <div class="inv-value">₱${totalValue}</div>
+          <div class="inv-sub">at current prices</div>
+        </div>
+        <div class="inv-card ${d.lowStockCount > 0 ? 'orange' : 'dark'}">
+          <div class="inv-label">Low Stock</div>
+          <div class="inv-value">${d.lowStockCount}</div>
+          <div class="inv-sub">items at or below min</div>
+        </div>
+        <div class="inv-card ${d.outOfStockCount > 0 ? 'dark' : 'teal'}">
+          <div class="inv-label">Out of Stock</div>
+          <div class="inv-value">${d.outOfStockCount}</div>
+          <div class="inv-sub">items at zero</div>
+        </div>
+      </div>`;
+
+    if (d.lowStockItems.length) {
+      html += `<h3 style="margin-bottom:8px;">⚠️ Low Stock Items</h3>`;
+      html += d.lowStockItems.map(p => `
+        <div class="item" style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <b>${p.name}</b>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge badge-red">Stock: ${p.stock}</span>
+              <div style="font-size:12px;color:#6b7280;margin-top:2px;">Min: ${p.minStock}</div>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    html += `<h3 style="margin:12px 0 8px;">📂 By Category</h3>`;
+    for (const [cat, info] of Object.entries(d.categories)) {
+      html += `
+        <div class="item" style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;">
+            <b>${cat}</b>
+            <span style="font-size:13px;color:#6b7280;">${info.count} items</span>
+          </div>
+          <div style="font-size:13px;color:#374151;margin-top:2px;">Value: ₱${Number(info.value).toFixed(2)}</div>
+        </div>`;
+    }
+
+    $('dashboardContent').innerHTML = html;
+  } catch (err) {
+    $('dashboardContent').innerHTML = `<div class="no-data-msg"><div class="icon">⚠️</div><div style="color:#dc2626;">${err.message}</div></div>`;
+  }
+}
+
+/* ── BEST SELLERS ───────────────────────────────── */
+async function loadBestSellers() {
+  const limit = $('bsLimit').value;
+  $('bestSellersList').innerHTML = '<div class="no-data-msg"><div class="spinner" style="border-top-color:#2563eb;border-color:#e5e7eb;"></div><br>Loading…</div>';
+  try {
+    const data = await apiGet(`/best-sellers?limit=${limit}`);
+    if (!data.length) {
+      $('bestSellersList').innerHTML = '<div class="no-data-msg"><div class="icon">🏆</div><div>No sales data yet.</div></div>';
+      return;
+    }
+    $('bestSellersList').innerHTML = data.map((p, i) => `
+      <div class="item" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <span style="font-size:18px;font-weight:bold;color:#f59e0b;">#${i+1}</span>
+            <b style="margin-left:6px;">${p.name}</b>
+            <div style="font-size:12px;color:#9ca3af;">${p.category}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:bold;">${p.qtyTotal} units sold</div>
+            <div style="font-size:13px;color:#16a34a;">₱${Number(p.revenueTotal).toFixed(2)} revenue</div>
+          </div>
+        </div>
+        <div style="background:#e5e7eb;height:6px;border-radius:999px;margin-top:8px;">
+          <div style="background:#2563eb;height:6px;border-radius:999px;width:${Math.min(100,(p.qtyTotal/data[0].qtyTotal)*100)}%;"></div>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    $('bestSellersList').innerHTML = `<div class="no-data-msg"><div class="icon">⚠️</div><div style="color:#dc2626;">${err.message}</div></div>`;
+  }
+}
+
+/* ── RESTOCK HISTORY ────────────────────────────── */
+async function loadRestockHistory() {
+  $('restockList').innerHTML = '<div class="no-data-msg"><div class="spinner" style="border-top-color:#2563eb;border-color:#e5e7eb;"></div><br>Loading…</div>';
+  try {
+    const rows = await apiGet('/restock-history');
+    if (!rows.length) {
+      $('restockList').innerHTML = '<div class="no-data-msg"><div class="icon">📦</div><div>No restock events yet.</div></div>';
+      return;
+    }
+    $('restockList').innerHTML = rows.map(r => `
+      <div class="item" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <b>${r.Name}</b>
+            <div style="font-size:12px;color:#9ca3af;">${r.Category}</div>
+            <div style="font-size:12px;color:#6b7280;">${r.Date} ${r.Time}</div>
+          </div>
+          <div style="text-align:right;">
+            <span class="badge badge-green">+${r.QtyAdded}</span>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">${r.StockBefore} → ${r.StockAfter}</div>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    $('restockList').innerHTML = `<div class="no-data-msg"><div class="icon">⚠️</div><div style="color:#dc2626;">${err.message}</div></div>`;
+  }
+}
+
+/* ── PRICE CHANGE LOG ───────────────────────────── */
+async function loadPriceLog() {
+  $('priceLogList').innerHTML = '<div class="no-data-msg"><div class="spinner" style="border-top-color:#2563eb;border-color:#e5e7eb;"></div><br>Loading…</div>';
+  try {
+    const rows = await apiGet('/price-change-log');
+    if (!rows.length) {
+      $('priceLogList').innerHTML = '<div class="no-data-msg"><div class="icon">🏷</div><div>No price changes recorded yet.</div></div>';
+      return;
+    }
+    $('priceLogList').innerHTML = rows.map(r => {
+      const diff = Number(r.NewPrice) - Number(r.OldPrice);
+      const cls  = diff > 0 ? 'badge-red' : 'badge-green';
+      const sign = diff > 0 ? '+' : '';
+      return `
+      <div class="item" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <b>${r.Name}</b>
+            <div style="font-size:12px;color:#6b7280;">${r.Date} ${r.Time}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;">₱${r.OldPrice} → ₱${r.NewPrice}</div>
+            <span class="badge ${cls}">${sign}₱${Math.abs(diff).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    $('priceLogList').innerHTML = `<div class="no-data-msg"><div class="icon">⚠️</div><div style="color:#dc2626;">${err.message}</div></div>`;
+  }
+}
+
+/* ── SORTABLE TABLE VIEW ────────────────────────── */
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  renderSortTable();
+}
+
+function renderSortTable() {
+  const kw  = ($('tableSearchBox')?.value || '').toLowerCase();
+  const cat = $('tableCatFilter')?.value || '';
+
+  let filtered = products.filter(p => {
+    const name = (p.Name || '').toLowerCase();
+    const sku  = (p.SKU  || '').toLowerCase();
+    const matchKw  = !kw  || name.includes(kw) || sku.includes(kw);
+    const matchCat = !cat || (p.Category || '') === cat;
+    return matchKw && matchCat;
+  });
+
+  filtered.sort((a, b) => {
+    let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
+    if (!isNaN(av) && !isNaN(bv)) { av = Number(av); bv = Number(bv); }
+    if (av < bv) return sortAsc ? -1 : 1;
+    if (av > bv) return sortAsc ?  1 : -1;
+    return 0;
+  });
+
+  // Update arrows
+  ['Name','Category','Price','Stock','MinStock'].forEach(c => {
+    const el = $('arr-' + c);
+    if (el) el.innerText = c === sortCol ? (sortAsc ? '▲' : '▼') : '⇅';
+  });
+
+  const tbody = $('sortTableBody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:20px;">No products match.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => {
+    const stock    = Number(p.Stock ?? 0);
+    const minStock = Number(p.MinStock ?? 5);
+    const bCls     = stock === 0 ? 'badge-red' : stock <= minStock ? 'badge-warn' : 'badge-green';
+    return `
+    <tr>
+      <td><b>${p.Name}</b></td>
+      <td style="font-size:12px;">${p.Category}</td>
+      <td>₱${fmt(p.Price)}</td>
+      <td><span class="badge ${bCls}">${stock}</span></td>
+      <td>
+        <input class="min-stock-input" type="number" value="${minStock}" id="ms-${p.SKU}" min="0">
+        <button class="save-min-btn" onclick="saveMinStock('${p.SKU}')">Save</button>
+      </td>
+      <td>
+        <button style="background:#7c3aed;padding:4px 8px;font-size:12px;border-radius:6px;" onclick="openAdjustModal('${p.SKU}','${p.Name}',${stock})">⚙ Adjust</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── SAVE MIN STOCK ─────────────────────────────── */
+async function saveMinStock(sku) {
+  const val = parseInt($('ms-' + sku)?.value);
+  if (isNaN(val)) return;
+  try {
+    await apiPost('/set-min-stock', { sku, minStock: val });
+    showToast(`✅ Min stock for ${sku} set to ${val}`);
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  }
+}
+
+/* ── MANUAL STOCK ADJUSTMENT ────────────────────── */
+let adjSKU = '';
+
+function openAdjustModal(sku, name, currentStock) {
+  adjSKU = sku;
+  $('adjProductName').innerText  = name;
+  $('adjSKU').innerText          = sku;
+  $('adjCurrentStock').innerText = currentStock;
+  $('adjAmount').value           = '';
+  $('adjReason').value           = '';
+  $('adjustModal').style.display = 'flex';
+}
+
+function closeAdjustModal() { $('adjustModal').style.display = 'none'; }
+
+async function saveAdjustment() {
+  const adjustment = parseInt($('adjAmount').value);
+  const reason     = $('adjReason').value.trim();
+  if (isNaN(adjustment)) return alert('Enter a valid adjustment amount.');
+  if (!reason) return alert('Please enter a reason.');
+
+  setBtnLoading('adjSaveBtn', true);
+  try {
+    const res = await apiPost('/adjust-stock', { sku: adjSKU, adjustment, reason });
+    showToast(`✅ ${res.message}`);
+    closeAdjustModal();
+    await loadProducts();
+  } catch (err) {
+    showToast('❌ ' + err.message, true);
+  } finally {
+    setBtnLoading('adjSaveBtn', false, 'Save Adjustment');
+  }
+}
+
+/* ── EXPORT ─────────────────────────────────────── */
+function exportCSV() {
+  if (!products.length) return alert('No products to export.');
+  const headers = ['SKU','Name','Category','Price','Stock','MinStock'];
+  const rows = products.map(p =>
+    headers.map(h => `"${(p[h] ?? '').toString().replace(/"/g,'""')}"`).join(',')
+  );
+  const csv = [headers.join(','), ...rows].join('\n');
+  downloadFile(csv, 'inventory.csv', 'text/csv');
+}
+
+function exportJSON() {
+  if (!products.length) return alert('No products to export.');
+  downloadFile(JSON.stringify(products, null, 2), 'inventory.json', 'application/json');
+}
+
+function downloadFile(content, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = filename;
+  a.click();
+}
+
+/* ── SEARCH & FILTER ────────────────────────────── */
+function searchProducts() {
+  const kw = $('searchBox').value.toLowerCase();
+  renderProducts(
+    products.filter(p =>
+      (p.Name || p.name || '').toLowerCase().includes(kw) ||
+      (p.Category || p.category || '').toLowerCase().includes(kw)
+    )
+  );
+}
+
+function filterCategory(cat) {
+  activeFilter = cat;
+  renderProducts();
+}
+
+/* ── CLOCK ──────────────────────────────────────── */
+function updateClock() {
+  $('liveDate').innerText = new Date().toLocaleString('en-PH');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── LOGIN / LOGOUT ─────────────────────────────── */
+function login(role) {
+  const user = $('username').value;
+  const pass = $('password').value;
+
+  const creds = {
+    admin:   { user:'admin',   pass:'admin123'   },
+    cashier: { user:'cashier', pass:'cashier123' }
+  };
+
+  if (user !== creds[role].user || pass !== creds[role].pass)
+    return alert('Invalid credentials!');
+
+  currentRole = role;
+  currentUser = user;
+
+  $('loginScreen').style.display = 'none';
+  $('mainSystem').style.display  = 'block';
+  $('roleLabel').innerText       = role === 'admin' ? 'ADMIN PANEL' : 'CASHIER PANEL';
+
+  if (role === 'cashier') {
+    $('adminControls').style.display  = 'none';
+    $('analyticsPanel').style.display = 'none';
+  } else {
+    $('cashierPanel').style.display = 'none';
+    const today = new Date().toISOString().split('T')[0];
+    $('salesDatePicker').max   = today;
+    $('salesDatePicker').value = today;
+  }
+
+  loadProducts();
+}
+
+function logout() { location.reload(); }
+</script>
+</body>
+</html>
