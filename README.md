@@ -1,6 +1,6 @@
 # 🛒 Manna's Tinadhan POS
 
-A lightweight, tablet-friendly Point of Sale system for small businesses. Built with vanilla HTML/CSS/JS on the frontend and Node.js + Excel as the database backend.
+A lightweight, tablet-friendly Point of Sale system for small businesses. Built with vanilla HTML/CSS/JS on the frontend, Node.js + Express on the backend, and Supabase (Postgres) as the database.
 
 **🌐 Live demo:** [mannas-tinadhan-pos.onrender.com](https://mannas-tinadhan-pos.onrender.com/)
 
@@ -42,7 +42,7 @@ A lightweight, tablet-friendly Point of Sale system for small businesses. Built 
 |----------|-----------------------------------|
 | Frontend | HTML, CSS, Vanilla JavaScript     |
 | Backend  | Node.js, Express                  |
-| Database | Excel (.xlsx) via SheetJS (xlsx)  |
+| Database | Supabase (hosted Postgres)        |
 | Fonts    | Google Fonts — DM Sans, DM Mono  |
 
 ---
@@ -51,11 +51,14 @@ A lightweight, tablet-friendly Point of Sale system for small businesses. Built 
 
 ```
 pos-backend/
-├── index.html        # Frontend — all UI, cashier & admin views
-├── server.js         # Backend — REST API, Excel read/write
-├── package.json      # Node.js dependencies
-├── .gitignore        # Excludes database and node_modules
-└── pos_database.xlsx # ⚠️ NOT in repo — generated on first run
+├── index.html              # Frontend — all UI, cashier & admin views
+├── server.js               # Backend — REST API, talks to Supabase
+├── supabase-schema.sql     # Run once in Supabase SQL Editor to create tables
+├── migrate-to-supabase.js  # One-time import of old pos_database.xlsx data
+├── package.json            # Node.js dependencies
+├── .env.example            # Template for SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
+├── .gitignore               # Excludes node_modules and .env
+└── pos_database.xlsx        # Legacy data file, only used by the migration script
 ```
 
 ---
@@ -64,6 +67,7 @@ pos-backend/
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) v16 or higher
+- A free [Supabase](https://supabase.com) account
 
 ### Installation
 
@@ -75,28 +79,35 @@ cd mannas-tinadhan-pos
 
 **2. Install dependencies**
 ```bash
-npm install express xlsx cors body-parser
+npm install
 ```
 
-**3. Set up the database**
+**3. Create a Supabase project**
 
-Create a file named `pos_database.xlsx` in the project folder with these sheets:
-- `Products`
-- `Sales`
-- `Sales_Summary`
-- `Restock_History`
-- `Price_Change_Log`
-- `Stock_Adjustments`
-- `Min_Stock_Config`
+At [supabase.com](https://supabase.com), create a new project, then go to **SQL Editor → New query**, paste in the contents of [`supabase-schema.sql`](./supabase-schema.sql), and run it. This creates all the tables the app needs (`products`, `sales`, `sales_summary`, `restock_history`, `price_change_log`, `stock_adjustments`).
 
-> The server will auto-create missing sheets on first run.
+**4. Configure environment variables**
 
-**4. Start the server**
+Copy `.env.example` to `.env` and fill in your project's credentials (found in **Project Settings → API**):
+```
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+```
+> ⚠️ Use the **service role** key here, not the anon/public key — the backend needs full read/write access. Never expose this key in frontend code or commit it to git (`.env` is already gitignored).
+
+**5. (Optional) Migrate your existing data**
+
+If you have an existing `pos_database.xlsx` with real data, import it once:
+```bash
+node migrate-to-supabase.js
+```
+
+**6. Start the server**
 ```bash
 node server.js
 ```
 
-**5. Open the app**
+**7. Open the app**
 
 Go to **http://localhost:3000** in your browser or tablet.
 
@@ -118,9 +129,14 @@ This app is currently deployed at **<https://mannas-tinadhan-pos.onrender.com/>*
 
 Render sets the `PORT` environment variable automatically, and `server.js` already reads `process.env.PORT`, so no extra config is needed there.
 
-> ⚠️ **Data persistence warning:** `pos_database.xlsx` is read from and written to the app's local disk. Render's free/standard web services use an **ephemeral filesystem** — every redeploy, restart, or spin-down/up (common on the free tier after inactivity) resets the disk to whatever's committed in the repo, **wiping any sales, restocks, or inventory changes made in between**. For real production data, either:
-> - Add a [Render persistent disk](https://render.com/docs/disks) (paid) and point `DB_FILE` at a path on that disk, or
-> - Migrate the database layer to a proper hosted database (Postgres, Google Sheets API, etc.) instead of a local `.xlsx` file.
+**Required environment variables** (set these in Render → your service → Environment):
+
+| Key | Value |
+| --- | --- |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key |
+
+Since the database now lives in Supabase (hosted Postgres) rather than a local file, Render's ephemeral filesystem is no longer a concern — sales, restocks, and inventory changes persist across redeploys and restarts.
 
 ---
 
@@ -136,17 +152,18 @@ Render sets the `PORT` environment variable automatically, and `server.js` alrea
 
 ---
 
-## 📊 Excel Database Sheets
+## 📊 Supabase Tables
 
-| Sheet               | Description                              |
-|---------------------|------------------------------------------|
-| `Products`          | Product catalog with stock levels        |
-| `Sales`             | One row per item per transaction         |
-| `Sales_Summary`     | One row per transaction                  |
-| `Restock_History`   | Every restock event                      |
-| `Price_Change_Log`  | Automatic log of price changes           |
-| `Stock_Adjustments` | Manual stock corrections with reason     |
-| `Min_Stock_Config`  | Per-product minimum stock thresholds     |
+| Table               | Description                              |
+|----------------------|------------------------------------------|
+| `products`          | Product catalog, stock levels, and per-product min stock threshold |
+| `sales`             | One row per item per transaction         |
+| `sales_summary`     | One row per transaction                  |
+| `restock_history`   | Every restock event                      |
+| `price_change_log`  | Automatic log of price changes           |
+| `stock_adjustments` | Manual stock corrections with reason     |
+
+Schema defined in [`supabase-schema.sql`](./supabase-schema.sql). Row Level Security is enabled on every table with no public policies — only the backend's service role key can read or write.
 
 ---
 
