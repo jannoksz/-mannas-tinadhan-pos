@@ -2,6 +2,8 @@
 
 A lightweight, tablet-friendly Point of Sale system for small businesses. Built with vanilla HTML/CSS/JS on the frontend and Node.js + Excel as the database backend.
 
+**🌐 Live demo:** [mannas-tinadhan-pos.onrender.com](https://mannas-tinadhan-pos.onrender.com/)
+
 ---
 
 ## ✨ Features
@@ -99,6 +101,29 @@ node server.js
 Go to **http://localhost:3000** in your browser or tablet.
 
 ---
+
+## ☁️ Deploying on Render
+
+[#-deploying-on-render](#-deploying-on-render)
+
+This app is currently deployed at **<https://mannas-tinadhan-pos.onrender.com/>** as a Render **Web Service**.
+
+**Settings used:**
+
+| Setting        | Value           |
+| -------------- | --------------- |
+| Build Command  | `npm install`   |
+| Start Command  | `node server.js` (or `npm start`) |
+| Environment    | Node            |
+
+Render sets the `PORT` environment variable automatically, and `server.js` already reads `process.env.PORT`, so no extra config is needed there.
+
+> ⚠️ **Data persistence warning:** `pos_database.xlsx` is read from and written to the app's local disk. Render's free/standard web services use an **ephemeral filesystem** — every redeploy, restart, or spin-down/up (common on the free tier after inactivity) resets the disk to whatever's committed in the repo, **wiping any sales, restocks, or inventory changes made in between**. For real production data, either:
+> - Add a [Render persistent disk](https://render.com/docs/disks) (paid) and point `DB_FILE` at a path on that disk, or
+> - Migrate the database layer to a proper hosted database (Postgres, Google Sheets API, etc.) instead of a local `.xlsx` file.
+
+---
+
 
 ## 🔐 Default Login Credentials
 
