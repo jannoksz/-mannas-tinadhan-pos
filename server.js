@@ -1,53 +1,39 @@
 /**
- * Manna's Tinadhan POS — server.js  (v2 — all features)
- * Install:  npm install express xlsx cors body-parser
+ * Manna's Tinadhan POS — server.js  (v3 — Supabase backend)
+ * Install:  npm install express cors body-parser @supabase/supabase-js dotenv
+ * Env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (see .env.example)
  * Run:      node server.js
  */
 
+require('dotenv').config();
+
 const express    = require('express');
-const XLSX       = require('xlsx');
 const cors       = require('cors');
 const bodyParser = require('body-parser');
-const path       = require('path');
-const fs         = require('fs');
+const { createClient } = require('@supabase/supabase-js');
 
-const app     = express();
-const PORT    = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, 'pos_database.xlsx');
+const app  = express();
+const PORT = process.env.PORT || 3000;
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌  Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.');
+  console.error('    Copy .env.example to .env and fill in your Supabase project credentials.');
+  process.exit(1);
+}
+
+// Service-role key: server-side only, full read/write, bypasses RLS.
+// NEVER send this key to the browser/frontend.
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
 // ─────────────────────────────────────────────────────
-//  HELPER — read workbook, auto-create missing sheets
-// ─────────────────────────────────────────────────────
-function readWorkbook() {
-  if (!fs.existsSync(DB_FILE)) {
-    throw new Error(`Database file not found: ${DB_FILE}`);
-  }
-  const wb = XLSX.readFile(DB_FILE);
-
-  const sheets = [
-    'Products', 'Sales', 'Sales_Summary',
-    'Restock_History', 'Price_Change_Log',
-    'Stock_Adjustments', 'Min_Stock_Config'
-  ];
-  for (const name of sheets) {
-    if (!wb.SheetNames.includes(name)) {
-      wb.Sheets[name] = XLSX.utils.json_to_sheet([]);
-      wb.SheetNames.push(name);
-    }
-  }
-  return wb;
-}
-
-function writeWorkbook(wb) {
-  XLSX.writeFile(wb, DB_FILE);
-}
-
-// ─────────────────────────────────────────────────────
-//  HELPER — SKU generator
+//  HELPERS
 // ─────────────────────────────────────────────────────
 const SKU_PREFIX = {
   'Dairy Products':      'DRY',
@@ -58,10 +44,14 @@ const SKU_PREFIX = {
   'Packaging Supplies':  'PKG'
 };
 
-function generateSKU(category, products) {
+async function generateSKU(category) {
   const prefix = SKU_PREFIX[category] || 'GEN';
-  const count  = products.filter(p => p.Category === category).length + 1;
-  return `${prefix}-${String(count).padStart(3, '0')}`;
+  const { count, error } = await supabase
+    .from('products')
+    .select('*', { count: 'exact', head: true })
+    .eq('category', category);
+  if (error) throw error;
+  return `${prefix}-${String((count || 0) + 1).padStart(3, '0')}`;
 }
 
 function formatDate(d) {
@@ -75,25 +65,21 @@ function formatTime(d) {
   return d.toLocaleTimeString('en-US');
 }
 
+// Map DB rows (snake_case) -> API shape (PascalCase), unchanged from the old xlsx version
+const mapProduct    = p => ({ SKU: p.sku, Name: p.name, Category: p.category, Price: Number(p.price), Stock: Number(p.stock), MinStock: Number(p.min_stock) });
+const mapRestock    = r => ({ Date: r.date, Time: r.time, SKU: r.sku, Name: r.name, Category: r.category, QtyAdded: Number(r.qty_added), StockBefore: Number(r.stock_before), StockAfter: Number(r.stock_after), Price: Number(r.price) });
+const mapPriceLog   = r => ({ Date: r.date, Time: r.time, SKU: r.sku, Name: r.name, OldPrice: Number(r.old_price), NewPrice: Number(r.new_price), ChangedBy: r.changed_by });
+const mapAdjustment = r => ({ Date: r.date, Time: r.time, SKU: r.sku, Name: r.name, Adjustment: Number(r.adjustment), StockBefore: Number(r.stock_before), StockAfter: Number(r.stock_after), Reason: r.reason });
+const mapSaleItem   = r => ({ TransactionID: r.transaction_id, Date: r.date, Time: r.time, Cashier: r.cashier, ProductName: r.product_name, SKU: r.sku, Category: r.category, Quantity: Number(r.quantity), UnitPrice: Number(r.unit_price), Subtotal: Number(r.subtotal), TotalAmount: Number(r.total_amount) });
+
 // ─────────────────────────────────────────────────────
 //  GET /products
 // ─────────────────────────────────────────────────────
-app.get('/products', (req, res) => {
+app.get('/products', async (req, res) => {
   try {
-    const wb       = readWorkbook();
-    const products = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-
-    // Attach min stock config per product
-    const minCfg = XLSX.utils.sheet_to_json(wb.Sheets['Min_Stock_Config']);
-    const minMap = {};
-    for (const r of minCfg) minMap[r.SKU] = r.MinStock;
-
-    const enriched = products.map(p => ({
-      ...p,
-      MinStock: minMap[p.SKU] ?? 5   // default threshold = 5
-    }));
-
-    res.json(enriched);
+    const { data, error } = await supabase.from('products').select('*').order('sku');
+    if (error) throw error;
+    res.json(data.map(mapProduct));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -102,7 +88,7 @@ app.get('/products', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  POST /add-product  (also logs restock & price change)
 // ─────────────────────────────────────────────────────
-app.post('/add-product', (req, res) => {
+app.post('/add-product', async (req, res) => {
   try {
     const { name, category, price, stock } = req.body;
 
@@ -110,82 +96,65 @@ app.post('/add-product', (req, res) => {
       return res.status(400).json({ error: 'Missing fields' });
     }
 
-    const wb       = readWorkbook();
-    let products   = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    const index    = products.findIndex(p => p.Name.toLowerCase() === name.toLowerCase());
-    const now      = new Date();
-    const dateStr  = formatDate(now);
-    const timeStr  = formatTime(now);
+    const now     = new Date();
+    const dateStr = formatDate(now);
+    const timeStr = formatTime(now);
+
+    const { data: matches, error: findErr } = await supabase
+      .from('products').select('*').ilike('name', name);
+    if (findErr) throw findErr;
+    const existing = matches && matches[0];
 
     let message;
-    if (index >= 0) {
-      const oldPrice = products[index].Price;
-      const oldStock = Number(products[index].Stock);
-      products[index].Stock = oldStock + Number(stock);
-      products[index].Price = Number(price);
-      message = `Restocked "${name}". New stock: ${products[index].Stock}`;
 
-      // Log restock
-      let restockRows = XLSX.utils.sheet_to_json(wb.Sheets['Restock_History']);
-      restockRows.push({
-        Date:     dateStr,
-        Time:     timeStr,
-        SKU:      products[index].SKU,
-        Name:     name,
-        Category: category,
-        QtyAdded: Number(stock),
-        StockBefore: oldStock,
-        StockAfter:  products[index].Stock,
-        Price:    Number(price)
-      });
-      wb.Sheets['Restock_History'] = XLSX.utils.json_to_sheet(restockRows, {
-        header: ['Date','Time','SKU','Name','Category','QtyAdded','StockBefore','StockAfter','Price']
-      });
+    if (existing) {
+      const oldPrice = Number(existing.price);
+      const oldStock = Number(existing.stock);
+      const newStock = oldStock + Number(stock);
+      const newPrice = Number(price);
 
-      // Log price change if different
-      if (Number(price) !== Number(oldPrice)) {
-        let priceLog = XLSX.utils.sheet_to_json(wb.Sheets['Price_Change_Log']);
-        priceLog.push({
-          Date:     dateStr,
-          Time:     timeStr,
-          SKU:      products[index].SKU,
-          Name:     name,
-          OldPrice: Number(oldPrice),
-          NewPrice: Number(price),
-          ChangedBy: 'admin'
+      const { error: updErr } = await supabase
+        .from('products')
+        .update({ stock: newStock, price: newPrice, updated_at: now.toISOString() })
+        .eq('sku', existing.sku);
+      if (updErr) throw updErr;
+
+      message = `Restocked "${name}". New stock: ${newStock}`;
+
+      const { error: restockErr } = await supabase.from('restock_history').insert({
+        date: dateStr, time: timeStr, sku: existing.sku, name, category,
+        qty_added: Number(stock), stock_before: oldStock, stock_after: newStock, price: newPrice
+      });
+      if (restockErr) throw restockErr;
+
+      if (newPrice !== oldPrice) {
+        const { error: priceErr } = await supabase.from('price_change_log').insert({
+          date: dateStr, time: timeStr, sku: existing.sku, name,
+          old_price: oldPrice, new_price: newPrice, changed_by: 'admin'
         });
-        wb.Sheets['Price_Change_Log'] = XLSX.utils.json_to_sheet(priceLog, {
-          header: ['Date','Time','SKU','Name','OldPrice','NewPrice','ChangedBy']
-        });
+        if (priceErr) throw priceErr;
       }
     } else {
-      const sku = generateSKU(category, products);
-      products.push({ SKU: sku, Name: name, Category: category, Price: Number(price), Stock: Number(stock) });
+      const sku = await generateSKU(category);
+
+      const { error: insErr } = await supabase.from('products').insert({
+        sku, name, category, price: Number(price), stock: Number(stock), min_stock: 5
+      });
+      if (insErr) throw insErr;
+
       message = `Added new product "${name}" (${sku})`;
 
-      // Log first restock as initial stock entry
-      let restockRows = XLSX.utils.sheet_to_json(wb.Sheets['Restock_History']);
-      restockRows.push({
-        Date:        dateStr,
-        Time:        timeStr,
-        SKU:         generateSKU(category, products.slice(0,-1)),
-        Name:        name,
-        Category:    category,
-        QtyAdded:    Number(stock),
-        StockBefore: 0,
-        StockAfter:  Number(stock),
-        Price:       Number(price)
+      const { error: restockErr } = await supabase.from('restock_history').insert({
+        date: dateStr, time: timeStr, sku, name, category,
+        qty_added: Number(stock), stock_before: 0, stock_after: Number(stock), price: Number(price)
       });
-      wb.Sheets['Restock_History'] = XLSX.utils.json_to_sheet(restockRows, {
-        header: ['Date','Time','SKU','Name','Category','QtyAdded','StockBefore','StockAfter','Price']
-      });
+      if (restockErr) throw restockErr;
     }
 
-    wb.Sheets['Products'] = XLSX.utils.json_to_sheet(products, {
-      header: ['SKU','Name','Category','Price','Stock']
-    });
-    writeWorkbook(wb);
-    res.json({ message, products });
+    const { data: products, error: listErr } = await supabase.from('products').select('*').order('sku');
+    if (listErr) throw listErr;
+
+    res.json({ message, products: products.map(mapProduct) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -194,23 +163,23 @@ app.post('/add-product', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  POST /delete-product
 // ─────────────────────────────────────────────────────
-app.post('/delete-product', (req, res) => {
+app.post('/delete-product', async (req, res) => {
   try {
-    const { sku }  = req.body;
-    const wb       = readWorkbook();
-    let products   = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    const before   = products.length;
-    products       = products.filter(p => p.SKU !== sku);
+    const { sku } = req.body;
 
-    if (products.length === before) {
+    const { data: existing, error: findErr } = await supabase.from('products').select('sku').eq('sku', sku);
+    if (findErr) throw findErr;
+    if (!existing || existing.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    wb.Sheets['Products'] = XLSX.utils.json_to_sheet(products, {
-      header: ['SKU','Name','Category','Price','Stock']
-    });
-    writeWorkbook(wb);
-    res.json({ message: `Deleted product ${sku}`, products });
+    const { error: delErr } = await supabase.from('products').delete().eq('sku', sku);
+    if (delErr) throw delErr;
+
+    const { data: products, error: listErr } = await supabase.from('products').select('*').order('sku');
+    if (listErr) throw listErr;
+
+    res.json({ message: `Deleted product ${sku}`, products: products.map(mapProduct) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -219,7 +188,7 @@ app.post('/delete-product', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  POST /checkout
 // ─────────────────────────────────────────────────────
-app.post('/checkout', (req, res) => {
+app.post('/checkout', async (req, res) => {
   try {
     const { cashier, cart, cash } = req.body;
 
@@ -227,69 +196,48 @@ app.post('/checkout', (req, res) => {
       return res.status(400).json({ error: 'Cart is empty' });
     }
 
-    const wb       = readWorkbook();
-    let products   = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    const total    = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+    const skus = cart.map(i => i.sku);
+    const { data: products, error: prodErr } = await supabase.from('products').select('*').in('sku', skus);
+    if (prodErr) throw prodErr;
 
+    const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
     if (cash < total) {
       return res.status(400).json({ error: 'Insufficient cash' });
     }
-
     const change = cash - total;
 
     for (const item of cart) {
-      const p = products.find(x => x.SKU === item.sku);
+      const p = products.find(x => x.sku === item.sku);
       if (!p) return res.status(400).json({ error: `Product not found: ${item.name}` });
-      if (p.Stock < item.qty) return res.status(400).json({ error: `Insufficient stock for ${item.name}` });
-      p.Stock -= item.qty;
+      if (Number(p.stock) < item.qty) return res.status(400).json({ error: `Insufficient stock for ${item.name}` });
     }
-
-    wb.Sheets['Products'] = XLSX.utils.json_to_sheet(products, {
-      header: ['SKU','Name','Category','Price','Stock']
-    });
-
-    const now     = new Date();
-    const txID    = 'R' + Date.now();
-    const dateStr = formatDate(now);
-    const timeStr = formatTime(now);
-
-    let salesRows = XLSX.utils.sheet_to_json(wb.Sheets['Sales']).filter(r => r.TransactionID);
 
     for (const item of cart) {
-      salesRows.push({
-        TransactionID: txID,
-        Date:          dateStr,
-        Time:          timeStr,
-        Cashier:       cashier || 'cashier',
-        ProductName:   item.name,
-        SKU:           item.sku,
-        Category:      item.category,
-        Quantity:      item.qty,
-        UnitPrice:     item.price,
-        Subtotal:      item.price * item.qty,
-        TotalAmount:   total
-      });
+      const p = products.find(x => x.sku === item.sku);
+      const newStock = Number(p.stock) - item.qty;
+      const { error: updErr } = await supabase.from('products').update({ stock: newStock }).eq('sku', item.sku);
+      if (updErr) throw updErr;
     }
 
-    wb.Sheets['Sales'] = XLSX.utils.json_to_sheet(salesRows, {
-      header: ['TransactionID','Date','Time','Cashier','ProductName','SKU','Category','Quantity','UnitPrice','Subtotal','TotalAmount']
-    });
+    const now       = new Date();
+    const txID      = 'R' + Date.now();
+    const dateStr   = formatDate(now);
+    const timeStr   = formatTime(now);
+    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
-    let summRows = XLSX.utils.sheet_to_json(wb.Sheets['Sales_Summary']).filter(r => r.TransactionID);
-    summRows.push({
-      TransactionID: txID,
-      Date:          dateStr,
-      Time:          timeStr,
-      Cashier:       cashier || 'cashier',
-      TotalAmount:   total,
-      ItemCount:     cart.reduce((s, i) => s + i.qty, 0)
+    const { error: summErr } = await supabase.from('sales_summary').insert({
+      transaction_id: txID, date: dateStr, time: timeStr, cashier: cashier || 'cashier',
+      total_amount: total, item_count: itemCount, cash, change
     });
+    if (summErr) throw summErr;
 
-    wb.Sheets['Sales_Summary'] = XLSX.utils.json_to_sheet(summRows, {
-      header: ['TransactionID','Date','Time','Cashier','TotalAmount','ItemCount']
-    });
-
-    writeWorkbook(wb);
+    const salesRows = cart.map(item => ({
+      transaction_id: txID, date: dateStr, time: timeStr, cashier: cashier || 'cashier',
+      product_name: item.name, sku: item.sku, category: item.category,
+      quantity: item.qty, unit_price: item.price, subtotal: item.price * item.qty, total_amount: total
+    }));
+    const { error: salesErr } = await supabase.from('sales').insert(salesRows);
+    if (salesErr) throw salesErr;
 
     res.json({
       message: 'Sale recorded',
@@ -305,34 +253,34 @@ app.post('/checkout', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  GET /sales?date=YYYY-MM-DD
 // ─────────────────────────────────────────────────────
-app.get('/sales', (req, res) => {
+app.get('/sales', async (req, res) => {
   try {
     const { date } = req.query;
-    const wb       = readWorkbook();
 
-    let summRows  = XLSX.utils.sheet_to_json(wb.Sheets['Sales_Summary']).filter(r => r.TransactionID);
-    let salesRows = XLSX.utils.sheet_to_json(wb.Sheets['Sales']).filter(r => r.TransactionID);
-
-    let filtered = summRows;
-
+    let query = supabase.from('sales_summary').select('*').order('created_at', { ascending: false });
     if (date) {
       const [y, m, d] = date.split('-');
-      const target = `${m}/${d}/${y}`;
-      filtered = summRows.filter(r => {
-        let rowDate = String(r.Date || '').trim();
-        if (!isNaN(rowDate) && rowDate !== '') {
-          const serial = parseInt(rowDate);
-          const excelEpoch = new Date(1900, 0, 1);
-          const converted  = new Date(excelEpoch.getTime() + (serial - 2) * 86400000);
-          rowDate = formatDate(converted);
-        }
-        return rowDate === target;
-      });
+      query = query.eq('date', `${m}/${d}/${y}`);
+    }
+    const { data: summRows, error: summErr } = await query;
+    if (summErr) throw summErr;
+
+    const txIDs = summRows.map(r => r.transaction_id);
+    let salesRows = [];
+    if (txIDs.length) {
+      const { data, error } = await supabase.from('sales').select('*').in('transaction_id', txIDs);
+      if (error) throw error;
+      salesRows = data;
     }
 
-    const result = filtered.map(tx => ({
-      ...tx,
-      items: salesRows.filter(r => r.TransactionID === tx.TransactionID)
+    const result = summRows.map(tx => ({
+      TransactionID: tx.transaction_id,
+      Date: tx.date,
+      Time: tx.time,
+      Cashier: tx.cashier,
+      TotalAmount: Number(tx.total_amount),
+      ItemCount: Number(tx.item_count),
+      items: salesRows.filter(r => r.transaction_id === tx.transaction_id).map(mapSaleItem)
     }));
 
     res.json(result);
@@ -343,28 +291,23 @@ app.get('/sales', (req, res) => {
 
 // ─────────────────────────────────────────────────────
 //  GET /inventory-dashboard
-//  Returns: total items, total stock value, low stock count, category breakdown
 // ─────────────────────────────────────────────────────
-app.get('/inventory-dashboard', (req, res) => {
+app.get('/inventory-dashboard', async (req, res) => {
   try {
-    const wb       = readWorkbook();
-    const products = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    const minCfg   = XLSX.utils.sheet_to_json(wb.Sheets['Min_Stock_Config']);
-    const minMap   = {};
-    for (const r of minCfg) minMap[r.SKU] = r.MinStock;
+    const { data: products, error } = await supabase.from('products').select('*');
+    if (error) throw error;
 
     const totalItems      = products.length;
-    const totalStockValue = products.reduce((s, p) => s + (p.Price * p.Stock), 0);
-    const lowStockItems   = products.filter(p => p.Stock <= (minMap[p.SKU] ?? 5));
-    const outOfStock      = products.filter(p => p.Stock === 0);
+    const totalStockValue = products.reduce((s, p) => s + Number(p.price) * Number(p.stock), 0);
+    const lowStockItems   = products.filter(p => Number(p.stock) <= Number(p.min_stock));
+    const outOfStock      = products.filter(p => Number(p.stock) === 0);
 
-    // Category breakdown
     const categories = {};
     for (const p of products) {
-      if (!categories[p.Category]) categories[p.Category] = { count: 0, value: 0, items: [] };
-      categories[p.Category].count++;
-      categories[p.Category].value += p.Price * p.Stock;
-      categories[p.Category].items.push({ name: p.Name, stock: p.Stock, price: p.Price });
+      if (!categories[p.category]) categories[p.category] = { count: 0, value: 0, items: [] };
+      categories[p.category].count++;
+      categories[p.category].value += Number(p.price) * Number(p.stock);
+      categories[p.category].items.push({ name: p.name, stock: Number(p.stock), price: Number(p.price) });
     }
 
     res.json({
@@ -373,7 +316,7 @@ app.get('/inventory-dashboard', (req, res) => {
       lowStockCount: lowStockItems.length,
       outOfStockCount: outOfStock.length,
       lowStockItems: lowStockItems.map(p => ({
-        sku: p.SKU, name: p.Name, stock: p.Stock, minStock: minMap[p.SKU] ?? 5
+        sku: p.sku, name: p.name, stock: Number(p.stock), minStock: Number(p.min_stock)
       })),
       categories
     });
@@ -385,11 +328,11 @@ app.get('/inventory-dashboard', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  GET /restock-history
 // ─────────────────────────────────────────────────────
-app.get('/restock-history', (req, res) => {
+app.get('/restock-history', async (req, res) => {
   try {
-    const wb   = readWorkbook();
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets['Restock_History']);
-    res.json([...rows].reverse()); // newest first
+    const { data, error } = await supabase.from('restock_history').select('*').order('id', { ascending: false });
+    if (error) throw error;
+    res.json(data.map(mapRestock));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -398,18 +341,17 @@ app.get('/restock-history', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  GET /best-sellers?limit=10
 // ─────────────────────────────────────────────────────
-app.get('/best-sellers', (req, res) => {
+app.get('/best-sellers', async (req, res) => {
   try {
-    const limit    = parseInt(req.query.limit) || 10;
-    const wb       = readWorkbook();
-    const salesRows = XLSX.utils.sheet_to_json(wb.Sheets['Sales']).filter(r => r.TransactionID);
+    const limit = parseInt(req.query.limit) || 10;
+    const { data: salesRows, error } = await supabase.from('sales').select('*');
+    if (error) throw error;
 
-    // Aggregate by SKU
     const totals = {};
     for (const r of salesRows) {
-      if (!totals[r.SKU]) totals[r.SKU] = { sku: r.SKU, name: r.ProductName, category: r.Category, qtyTotal: 0, revenueTotal: 0 };
-      totals[r.SKU].qtyTotal      += Number(r.Quantity);
-      totals[r.SKU].revenueTotal  += Number(r.Subtotal);
+      if (!totals[r.sku]) totals[r.sku] = { sku: r.sku, name: r.product_name, category: r.category, qtyTotal: 0, revenueTotal: 0 };
+      totals[r.sku].qtyTotal     += Number(r.quantity);
+      totals[r.sku].revenueTotal += Number(r.subtotal);
     }
 
     const sorted = Object.values(totals)
@@ -423,13 +365,13 @@ app.get('/best-sellers', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────
-//  GET /export-inventory   (returns JSON; client builds CSV/Excel)
+//  GET /export-inventory
 // ─────────────────────────────────────────────────────
-app.get('/export-inventory', (req, res) => {
+app.get('/export-inventory', async (req, res) => {
   try {
-    const wb       = readWorkbook();
-    const products = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    res.json(products);
+    const { data, error } = await supabase.from('products').select('sku,name,category,price,stock').order('sku');
+    if (error) throw error;
+    res.json(data.map(p => ({ SKU: p.sku, Name: p.name, Category: p.category, Price: Number(p.price), Stock: Number(p.stock) })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -438,11 +380,11 @@ app.get('/export-inventory', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  GET /price-change-log
 // ─────────────────────────────────────────────────────
-app.get('/price-change-log', (req, res) => {
+app.get('/price-change-log', async (req, res) => {
   try {
-    const wb   = readWorkbook();
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets['Price_Change_Log']);
-    res.json([...rows].reverse());
+    const { data, error } = await supabase.from('price_change_log').select('*').order('id', { ascending: false });
+    if (error) throw error;
+    res.json(data.map(mapPriceLog));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -451,21 +393,19 @@ app.get('/price-change-log', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  POST /set-min-stock  { sku, minStock }
 // ─────────────────────────────────────────────────────
-app.post('/set-min-stock', (req, res) => {
+app.post('/set-min-stock', async (req, res) => {
   try {
     const { sku, minStock } = req.body;
     if (!sku || minStock == null) return res.status(400).json({ error: 'Missing sku or minStock' });
 
-    const wb  = readWorkbook();
-    let rows  = XLSX.utils.sheet_to_json(wb.Sheets['Min_Stock_Config']);
-    const idx = rows.findIndex(r => r.SKU === sku);
-    if (idx >= 0) {
-      rows[idx].MinStock = Number(minStock);
-    } else {
-      rows.push({ SKU: sku, MinStock: Number(minStock) });
-    }
-    wb.Sheets['Min_Stock_Config'] = XLSX.utils.json_to_sheet(rows, { header: ['SKU','MinStock'] });
-    writeWorkbook(wb);
+    const { data, error } = await supabase
+      .from('products')
+      .update({ min_stock: Number(minStock) })
+      .eq('sku', sku)
+      .select();
+    if (error) throw error;
+    if (!data || data.length === 0) return res.status(404).json({ error: 'Product not found' });
+
     res.json({ message: `Min stock for ${sku} set to ${minStock}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -476,42 +416,30 @@ app.post('/set-min-stock', (req, res) => {
 //  POST /adjust-stock  { sku, adjustment, reason }
 //  adjustment can be positive (add) or negative (remove)
 // ─────────────────────────────────────────────────────
-app.post('/adjust-stock', (req, res) => {
+app.post('/adjust-stock', async (req, res) => {
   try {
     const { sku, adjustment, reason } = req.body;
     if (!sku || adjustment == null) return res.status(400).json({ error: 'Missing fields' });
 
-    const wb       = readWorkbook();
-    let products   = XLSX.utils.sheet_to_json(wb.Sheets['Products']);
-    const p        = products.find(x => x.SKU === sku);
+    const { data: matches, error: findErr } = await supabase.from('products').select('*').eq('sku', sku);
+    if (findErr) throw findErr;
+    const p = matches && matches[0];
     if (!p) return res.status(404).json({ error: 'Product not found' });
 
-    const before  = Number(p.Stock);
-    const after   = Math.max(0, before + Number(adjustment));
-    p.Stock       = after;
+    const before = Number(p.stock);
+    const after  = Math.max(0, before + Number(adjustment));
 
-    wb.Sheets['Products'] = XLSX.utils.json_to_sheet(products, {
-      header: ['SKU','Name','Category','Price','Stock']
-    });
+    const { error: updErr } = await supabase.from('products').update({ stock: after }).eq('sku', sku);
+    if (updErr) throw updErr;
 
-    // Log adjustment
-    const now     = new Date();
-    let adjRows   = XLSX.utils.sheet_to_json(wb.Sheets['Stock_Adjustments']);
-    adjRows.push({
-      Date:        formatDate(now),
-      Time:        formatTime(now),
-      SKU:         sku,
-      Name:        p.Name,
-      Adjustment:  Number(adjustment),
-      StockBefore: before,
-      StockAfter:  after,
-      Reason:      reason || 'Manual adjustment'
+    const now = new Date();
+    const { error: logErr } = await supabase.from('stock_adjustments').insert({
+      date: formatDate(now), time: formatTime(now), sku, name: p.name,
+      adjustment: Number(adjustment), stock_before: before, stock_after: after,
+      reason: reason || 'Manual adjustment'
     });
-    wb.Sheets['Stock_Adjustments'] = XLSX.utils.json_to_sheet(adjRows, {
-      header: ['Date','Time','SKU','Name','Adjustment','StockBefore','StockAfter','Reason']
-    });
+    if (logErr) throw logErr;
 
-    writeWorkbook(wb);
     res.json({ message: `Stock adjusted: ${before} → ${after}`, stockBefore: before, stockAfter: after });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -521,11 +449,11 @@ app.post('/adjust-stock', (req, res) => {
 // ─────────────────────────────────────────────────────
 //  GET /stock-adjustments
 // ─────────────────────────────────────────────────────
-app.get('/stock-adjustments', (req, res) => {
+app.get('/stock-adjustments', async (req, res) => {
   try {
-    const wb   = readWorkbook();
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets['Stock_Adjustments']);
-    res.json([...rows].reverse());
+    const { data, error } = await supabase.from('stock_adjustments').select('*').order('id', { ascending: false });
+    if (error) throw error;
+    res.json(data.map(mapAdjustment));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -536,5 +464,5 @@ app.get('/stock-adjustments', (req, res) => {
 // ─────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅  Manna's Tinadhan POS running at http://localhost:${PORT}`);
-  console.log(`📊  Database: ${DB_FILE}\n`);
+  console.log(`📊  Database: Supabase (${process.env.SUPABASE_URL})\n`);
 });
